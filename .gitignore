@@ -1,0 +1,13 @@
+# Dev intermediates — large Claude artifact exports
+artifact_*.html
+artifact_*.txt
+
+# Claude Code session state
+.claude/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
