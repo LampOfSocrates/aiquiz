@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edge Detection — Sobel & Canny</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4efe6;--ink:#1c2a33;--ink-soft:#5c6b72;--rule:#d8cfbf;--accent:#b4451f;
+    --gx:#2f6f8f;--gy:#4a7c59;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--paper);color:var(--ink);font-family:'Spline Sans Mono',monospace;
+    padding:40px 20px;line-height:1.5;
+    background-image:radial-gradient(circle at 1px 1px, rgba(28,42,51,.05) 1px, transparent 0);
+    background-size:18px 18px;
+  }
+  .card{
+    max-width:860px;margin:0 auto;background:#fbf8f2;border:1px solid var(--rule);
+    box-shadow:14px 14px 0 rgba(28,42,51,.08);padding:46px 50px 44px;
+  }
+  .tag{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);font-weight:600;margin-bottom:10px}
+  h1{font-family:'Fraunces',serif;font-weight:900;font-size:44px;line-height:.96;letter-spacing:-.01em;margin-bottom:8px}
+  .lede{font-size:13.5px;color:var(--ink-soft);max-width:64ch;margin-bottom:8px}
+  h2{font-family:'Fraunces',serif;font-weight:900;font-size:27px;margin:0 0 4px;letter-spacing:-.01em}
+  h2 .num{color:var(--accent);font-size:18px;vertical-align:middle;margin-right:8px}
+  h3{font-family:'Fraunces',serif;font-weight:600;font-size:16px;margin:22px 0 8px}
+  p{font-size:13px;margin-bottom:12px;max-width:66ch}
+  .rule{height:1px;background:var(--rule);margin:38px 0 30px}
+  .accent{color:var(--accent);font-weight:600}
+  b{color:var(--ink);font-weight:600}
+  code{background:rgba(28,42,51,.06);padding:1px 5px;border-radius:3px;font-size:12px}
+
+  /* kernels & patches */
+  .kernrow{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;margin:14px 0}
+  .kern{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .klab{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  .klab b{font-family:'Fraunces',serif}
+  .mat{display:grid;grid-template-columns:repeat(3,34px);grid-template-rows:repeat(3,34px);gap:3px}
+  .mat.wide{grid-template-columns:repeat(3,40px);grid-template-rows:repeat(3,40px)}
+  .mc{display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;border-radius:4px;font-variant-numeric:tabular-nums}
+  .mc.pos{background:rgba(180,69,31,.16);color:var(--accent)}
+  .mc.neg{background:rgba(47,111,143,.16);color:var(--gx)}
+  .mc.zero{background:rgba(28,42,51,.05);color:var(--ink-soft)}
+  .mc.val{background:#eee6d6;color:var(--ink)}
+
+  .work{background:#f3ecdd;border-left:2px solid var(--accent);padding:14px 18px;border-radius:0 6px 6px 0;font-size:12.5px;margin:14px 0}
+  .work .ln{margin:4px 0}
+  .work .res{font-weight:600;background:rgba(180,69,31,.14);padding:0 6px;border-radius:3px}
+
+  /* canvases */
+  .pipe{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;justify-content:center;margin:18px 0}
+  .stagebox{display:flex;flex-direction:column;align-items:center;gap:7px}
+  canvas{border:1px solid var(--ink);background:#000;image-rendering:auto;width:200px;height:150px;display:block}
+  .clab{font-size:10.5px;letter-spacing:.05em;color:var(--ink-soft);text-align:center;max-width:200px}
+  .clab b{color:var(--ink);display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+  .pchevron{align-self:center;color:var(--accent);font-size:20px;font-family:'Fraunces',serif}
+
+  /* controls */
+  .ctrls{display:flex;gap:26px;flex-wrap:wrap;background:#f3ecdd;border:1px solid var(--rule);border-radius:8px;padding:16px 20px;margin:16px 0}
+  .ctrl{flex:1;min-width:170px}
+  .ctrl label{display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:6px}
+  .ctrl label b{color:var(--accent)}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .stagepick{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+  .stagepick button{font-family:inherit;font-size:11px;padding:5px 11px;border:1px solid var(--rule);background:#fbf8f2;border-radius:20px;cursor:pointer;color:var(--ink-soft)}
+  .stagepick button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+  .pill{display:inline-flex;gap:6px;align-items:center;font-size:11px;color:var(--ink-soft);margin-right:14px}
+  .pill i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  table.cmp{width:100%;border-collapse:collapse;font-size:12px;margin:14px 0}
+  table.cmp th,table.cmp td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+  table.cmp th{font-family:'Fraunces',serif;font-size:13px;color:var(--accent)}
+  table.cmp td:first-child{font-weight:600;white-space:nowrap}
+  @media(max-width:600px){.card{padding:30px 22px}h1{font-size:32px}canvas{width:150px;height:113px}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="tag">Computer Vision · Edge Detection</div>
+  <h1>Sobel &amp; Canny</h1>
+  <p class="lede">An edge is where image intensity changes sharply. Sobel measures that change directly with a pair of small filters; Canny wraps Sobel in a five-stage pipeline to return clean, single-pixel-wide contours. Everything below runs live in your browser — drag the sliders.</p>
+
+  <div class="rule"></div>
+
+  <!-- ============ SOBEL ============ -->
+  <h2><span class="num">01</span>Sobel — the gradient operator</h2>
+  <p>The image gradient ∇I = (G<sub>x</sub>, G<sub>y</sub>) points in the direction of steepest intensity increase. Sobel approximates each component by convolving the image with a 3×3 kernel that combines differencing (find the change) with light smoothing (resist noise). Blue = negative weight, orange = positive.</p>
+
+  <div class="kernrow">
+    <div class="kern">
+      <div class="mat" id="kgx"></div>
+      <div class="klab"><b>G<sub>x</sub></b> &nbsp;horizontal change</div>
+    </div>
+    <div class="kern">
+      <div class="mat" id="kgy"></div>
+      <div class="klab"><b>G<sub>y</sub></b> &nbsp;vertical change</div>
+    </div>
+    <div class="kern" style="min-width:180px">
+      <div class="klab" style="text-transform:none;letter-spacing:0;text-align:left;line-height:1.7">
+        <b>magnitude</b> = √(G<sub>x</sub>² + G<sub>y</sub>²)<br>
+        <span style="color:var(--ink)">— how strong the edge is</span><br><br>
+        <b>direction</b> = atan2(G<sub>y</sub>, G<sub>x</sub>)<br>
+        <span style="color:var(--ink)">— gradient points across the edge</span>
+      </div>
+    </div>
+  </div>
+
+  <h3>Worked by hand — a vertical edge</h3>
+  <p>Take a 3×3 patch straddling a dark-to-bright vertical edge (left column 10, right column 80). Multiply each kernel against the patch and sum.</p>
+  <div class="kernrow">
+    <div class="kern">
+      <div class="mat wide" id="patch"></div>
+      <div class="klab">image patch</div>
+    </div>
+    <div class="work" style="flex:1;min-width:260px">
+      <div class="ln"><span class="accent">G<sub>x</sub></span> = (−1·10 +1·80) + (−2·10 +2·80) + (−1·10 +1·80)</div>
+      <div class="ln">&nbsp;&nbsp;&nbsp;= 70 + 140 + 70 = <span class="res">280</span></div>
+      <div class="ln"><span class="accent">G<sub>y</sub></span> = −(10+20+80) + (10+20+80) = <span class="res">0</span></div>
+      <div class="ln" style="margin-top:8px"><b>magnitude</b> = √(280² + 0²) = <span class="res">280</span> (strong)</div>
+      <div class="ln"><b>direction</b> = atan2(0, 280) = <span class="res">0°</span></div>
+      <div class="ln" style="margin-top:6px;color:var(--ink-soft)">Gradient points horizontally → the edge itself is <b>vertical</b>. A horizontal edge would flip the result: G<sub>x</sub>=0, G<sub>y</sub> large.</div>
+    </div>
+  </div>
+
+  <h3>Live — Sobel on a real image</h3>
+  <p>Grayscale source → gradient magnitude (bright = strong edge) → gradient direction (hue = orientation). Sobel responds everywhere intensity changes, including soft gradients and noise — that thickness and clutter is exactly what Canny will clean up.</p>
+  <div class="pipe">
+    <div class="stagebox"><canvas id="s_src" width="256" height="192"></canvas><div class="clab"><b>Source</b>grayscale</div></div>
+    <div class="pchevron">→</div>
+    <div class="stagebox"><canvas id="s_mag" width="256" height="192"></canvas><div class="clab"><b>Magnitude</b>‖∇I‖</div></div>
+    <div class="pchevron">→</div>
+    <div class="stagebox"><canvas id="s_dir" width="256" height="192"></canvas><div class="clab"><b>Direction</b>angle as hue</div></div>
+  </div>
+
+  <div class="rule"></div>
+
+  <!-- ============ CANNY ============ -->
+  <h2><span class="num">02</span>Canny — the five-stage pipeline</h2>
+  <p>John Canny's 1986 detector is still the default. It turns Sobel's thick, noisy response into thin, connected, well-localised edges through five steps, each fixing a flaw of the one before.</p>
+
+  <table class="cmp">
+    <tr><th>Stage</th><th>Does</th><th>Fixes</th></tr>
+    <tr><td>1 · Gaussian blur</td><td>Smooths the image (σ controls how much)</td><td>Noise that would trigger false edges</td></tr>
+    <tr><td>2 · Sobel gradient</td><td>Magnitude + direction at every pixel</td><td>— (this is the raw edge signal)</td></tr>
+    <tr><td>3 · Non-max suppression</td><td>Keeps a pixel only if it's the local peak across the edge</td><td>Thick, fuzzy edges → 1px wide</td></tr>
+    <tr><td>4 · Double threshold</td><td>Classifies pixels strong / weak / discard</td><td>Picking one threshold is too brittle</td></tr>
+    <tr><td>5 · Hysteresis</td><td>Keeps weak pixels only if connected to a strong one</td><td>Broken edges &amp; isolated specks</td></tr>
+  </table>
+
+  <h3>Live pipeline — tune the parameters</h3>
+  <div class="ctrls">
+    <div class="ctrl"><label>Blur σ <b id="v_sig">1.4</b></label><input id="i_sig" type="range" min="0" max="3" step="0.1" value="1.4"></div>
+    <div class="ctrl"><label>Low threshold <b id="v_lo">25</b></label><input id="i_lo" type="range" min="2" max="120" step="1" value="25"></div>
+    <div class="ctrl"><label>High threshold <b id="v_hi">70</b></label><input id="i_hi" type="range" min="5" max="250" step="1" value="70"></div>
+    <div class="ctrl"><label>Noise <b id="v_nz">18</b></label><input id="i_nz" type="range" min="0" max="60" step="1" value="18"></div>
+  </div>
+  <div class="pipe" id="cpipe">
+    <div class="stagebox"><canvas id="c_blur" width="256" height="192"></canvas><div class="clab"><b>1 · Blurred</b>σ smoothing</div></div>
+    <div class="pchevron">→</div>
+    <div class="stagebox"><canvas id="c_mag" width="256" height="192"></canvas><div class="clab"><b>2 · Gradient</b>Sobel magnitude</div></div>
+    <div class="pchevron">→</div>
+    <div class="stagebox"><canvas id="c_nms" width="256" height="192"></canvas><div class="clab"><b>3 · Thinned</b>non-max suppression</div></div>
+    <div class="pchevron">→</div>
+    <div class="stagebox"><canvas id="c_thr" width="256" height="192"></canvas><div class="clab"><b>4 · Thresholded</b><span class="pill"><i style="background:#fff"></i>strong</span><span class="pill"><i style="background:#b4451f"></i>weak</span></div></div>
+    <div class="pchevron">→</div>
+    <div class="stagebox"><canvas id="c_fin" width="256" height="192"></canvas><div class="clab"><b>5 · Final</b>after hysteresis</div></div>
+  </div>
+  <p style="color:var(--ink-soft);font-size:12px">Try it: push <b>σ</b> up and watch fine texture vanish but corners round off. Raise the <b>high</b> threshold to keep only the boldest edges; raise <b>low</b> and weak edges stop linking up, so contours fracture. Crank <b>noise</b> with σ=0 to see why smoothing comes first.</p>
+
+  <div class="rule"></div>
+  <h3>The one-line summary</h3>
+  <p style="margin-bottom:0"><b>Sobel</b> answers <i>"how fast is intensity changing here, and in which direction?"</i> — a raw, thick, noise-prone gradient. <b>Canny</b> takes that gradient and disciplines it: blur to suppress noise, thin to one pixel, then threshold with hysteresis so only confident, connected contours survive.</p>
+</div>
+
+<script>
+/* ---------- matrices ---------- */
+function fillMat(el,vals,cls){vals.forEach(v=>{const c=document.createElement('div');
+  c.className='mc '+(cls?cls:(v>0?'pos':v<0?'neg':'zero'));c.textContent=v;el.appendChild(c);});}
+fillMat(document.getElementById('kgx'),[-1,0,1,-2,0,2,-1,0,1]);
+fillMat(document.getElementById('kgy'),[-1,-2,-1,0,0,0,1,2,1]);
+fillMat(document.getElementById('patch'),[10,10,80,10,10,80,10,10,80],'val');
+
+/* ---------- shared image-processing ---------- */
+const W=256,Hh=192;
+function genImage(noise){
+  const c=document.createElement('canvas');c.width=W;c.height=Hh;const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,W,Hh);g.addColorStop(0,'#2b2b2b');g.addColorStop(1,'#777');
+  x.fillStyle=g;x.fillRect(0,0,W,Hh);
+  x.fillStyle='#e8e8e8';x.fillRect(28,44,72,92);
+  x.fillStyle='#9a9a9a';x.beginPath();x.arc(186,66,40,0,7);x.fill();
+  x.strokeStyle='#fff';x.lineWidth=5;x.beginPath();x.moveTo(16,176);x.lineTo(244,118);x.stroke();
+  x.fillStyle='#101010';x.beginPath();x.moveTo(150,150);x.lineTo(214,182);x.lineTo(118,186);x.closePath();x.fill();
+  const d=x.getImageData(0,0,W,Hh).data;const gray=new Float32Array(W*Hh);
+  for(let i=0;i<W*Hh;i++){let v=0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2];
+    if(noise>0)v+=(Math.random()*2-1)*noise;gray[i]=Math.max(0,Math.min(255,v));}
+  return gray;
+}
+function gaussianKernel(s){const r=Math.max(1,Math.ceil(s*3));const k=[];let sum=0;
+  for(let i=-r;i<=r;i++){const v=Math.exp(-(i*i)/(2*s*s));k.push(v);sum+=v;}return k.map(v=>v/sum);}
+function convH(src,k){const r=(k.length-1)/2,o=new Float32Array(W*Hh);
+  for(let y=0;y<Hh;y++)for(let x=0;x<W;x++){let a=0;for(let i=-r;i<=r;i++){const xx=Math.min(W-1,Math.max(0,x+i));a+=src[y*W+xx]*k[i+r];}o[y*W+x]=a;}return o;}
+function convV(src,k){const r=(k.length-1)/2,o=new Float32Array(W*Hh);
+  for(let y=0;y<Hh;y++)for(let x=0;x<W;x++){let a=0;for(let i=-r;i<=r;i++){const yy=Math.min(Hh-1,Math.max(0,y+i));a+=src[yy*W+x]*k[i+r];}o[y*W+x]=a;}return o;}
+function blur(src,s){if(s<=0)return src.slice();const k=gaussianKernel(s);return convV(convH(src,k),k);}
+function sobel(src){const mag=new Float32Array(W*Hh),dir=new Float32Array(W*Hh);
+  const gx=[-1,0,1,-2,0,2,-1,0,1],gy=[-1,-2,-1,0,0,0,1,2,1];
+  for(let y=1;y<Hh-1;y++)for(let x=1;x<W-1;x++){let sx=0,sy=0,idx=0;
+    for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){const v=src[(y+j)*W+(x+i)];sx+=v*gx[idx];sy+=v*gy[idx];idx++;}
+    mag[y*W+x]=Math.hypot(sx,sy);dir[y*W+x]=Math.atan2(sy,sx);}
+  return{mag,dir};}
+function nms(mag,dir){const o=new Float32Array(W*Hh);
+  for(let y=1;y<Hh-1;y++)for(let x=1;x<W-1;x++){let a=dir[y*W+x]*180/Math.PI;a=((a%180)+180)%180;
+    const m=mag[y*W+x];let q,r;
+    if(a<22.5||a>=157.5){q=mag[y*W+x+1];r=mag[y*W+x-1];}
+    else if(a<67.5){q=mag[(y+1)*W+x-1];r=mag[(y-1)*W+x+1];}
+    else if(a<112.5){q=mag[(y+1)*W+x];r=mag[(y-1)*W+x];}
+    else{q=mag[(y-1)*W+x-1];r=mag[(y+1)*W+x+1];}
+    o[y*W+x]=(m>=q&&m>=r)?m:0;}return o;}
+function classify(nm,lo,hi){const c=new Uint8Array(W*Hh);
+  for(let i=0;i<W*Hh;i++)c[i]=nm[i]>=hi?2:nm[i]>=lo?1:0;return c;}
+function hysteresis(cl){const out=cl.slice();const st=[];
+  for(let i=0;i<W*Hh;i++)if(out[i]===2)st.push(i);
+  while(st.length){const i=st.pop(),x=i%W,y=(i/W)|0;
+    for(let j=-1;j<=1;j++)for(let k=-1;k<=1;k++){const xx=x+k,yy=y+j;if(xx<0||yy<0||xx>=W||yy>=Hh)continue;
+      const ni=yy*W+xx;if(out[ni]===1){out[ni]=2;st.push(ni);}}}
+  const r=new Uint8Array(W*Hh);for(let i=0;i<W*Hh;i++)r[i]=out[i]===2?255:0;return r;}
+
+/* ---------- painting ---------- */
+function paintGray(id,arr,scale){const cv=document.getElementById(id),ctx=cv.getContext('2d');
+  const im=ctx.createImageData(W,Hh);const s=scale||1;
+  for(let i=0;i<W*Hh;i++){let v=Math.max(0,Math.min(255,arr[i]*s));im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255;}
+  ctx.putImageData(im,0,0);}
+function paintBinary(id,arr){const cv=document.getElementById(id),ctx=cv.getContext('2d');
+  const im=ctx.createImageData(W,Hh);
+  for(let i=0;i<W*Hh;i++){const v=arr[i];im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255;}
+  ctx.putImageData(im,0,0);}
+function paintClass(id,cl){const cv=document.getElementById(id),ctx=cv.getContext('2d');
+  const im=ctx.createImageData(W,Hh);
+  for(let i=0;i<W*Hh;i++){let r,g,b;if(cl[i]===2){r=g=b=255;}else if(cl[i]===1){r=180;g=69;b=31;}else{r=g=b=0;}
+    im.data[i*4]=r;im.data[i*4+1]=g;im.data[i*4+2]=b;im.data[i*4+3]=255;}
+  ctx.putImageData(im,0,0);}
+function paintDir(id,mag,dir){const cv=document.getElementById(id),ctx=cv.getContext('2d');
+  const im=ctx.createImageData(W,Hh);let mx=1;for(let i=0;i<W*Hh;i++)if(mag[i]>mx)mx=mag[i];
+  for(let i=0;i<W*Hh;i++){const intensity=Math.min(1,mag[i]/(mx*0.5));
+    const hue=((dir[i]*180/Math.PI)+180)%180*2;const[r,g,b]=hsl2rgb(hue,0.7,0.25+0.45*intensity);
+    im.data[i*4]=r*intensity;im.data[i*4+1]=g*intensity;im.data[i*4+2]=b*intensity;im.data[i*4+3]=255;}
+  ctx.putImageData(im,0,0);}
+function hsl2rgb(h,s,l){h/=360;const a=s*Math.min(l,1-l);const f=n=>{const k=(n+h*12)%12;return l-a*Math.max(-1,Math.min(k-3,9-k,1));};
+  return[Math.round(f(0)*255),Math.round(f(8)*255),Math.round(f(4)*255)];}
+
+/* ---------- Sobel section (static-ish, uses light noise) ---------- */
+const sobelSrc=genImage(8);
+paintGray('s_src',sobelSrc);
+(function(){const{mag,dir}=sobel(blur(sobelSrc,1.0));paintGray('s_mag',mag,0.6);paintDir('s_dir',mag,dir);})();
+
+/* ---------- Canny live ---------- */
+const I={sig:document.getElementById('i_sig'),lo:document.getElementById('i_lo'),hi:document.getElementById('i_hi'),nz:document.getElementById('i_nz')};
+const V={sig:document.getElementById('v_sig'),lo:document.getElementById('v_lo'),hi:document.getElementById('v_hi'),nz:document.getElementById('v_nz')};
+let baseImg=genImage(+I.nz.value),lastNoise=+I.nz.value;
+function run(){
+  const sig=+I.sig.value,lo=+I.lo.value,hi=Math.max(+I.hi.value,lo+1),nz=+I.nz.value;
+  V.sig.textContent=sig.toFixed(1);V.lo.textContent=lo;V.hi.textContent=hi;V.nz.textContent=nz;
+  if(nz!==lastNoise){baseImg=genImage(nz);lastNoise=nz;}
+  const b=blur(baseImg,sig);paintGray('c_blur',b);
+  const{mag,dir}=sobel(b);paintGray('c_mag',mag,0.6);
+  const thin=nms(mag,dir);paintGray('c_nms',thin,0.8);
+  const cl=classify(thin,lo,hi);paintClass('c_thr',cl);
+  const fin=hysteresis(cl);paintBinary('c_fin',fin);
+}
+Object.values(I).forEach(el=>el.addEventListener('input',run));
+run();
+</script>
+</body>
+</html>

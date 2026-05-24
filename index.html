@@ -140,6 +140,13 @@ body.wrong-only .wb.empty,body.flagged-only .wb.empty{color:var(--ok);border-col
 .focus-card.focus-light .focus-card-desc{color:#4A5E80}
 .focus-card.focus-light .focus-card-arrow{color:#5E7AA0}
 .focus-card.focus-light:hover{border-color:#7A9BC4;background:#E5EDF7}
+/* Warm-coloured tile variant (e.g. Edge Detection) */
+.focus-card.focus-warm{background:#F8EEE2;border-color:#E5CDB0}
+.focus-card.focus-warm .focus-card-tag{color:#9A6738}
+.focus-card.focus-warm .focus-card-title{color:#7A3F18}
+.focus-card.focus-warm .focus-card-desc{color:#5C3A20}
+.focus-card.focus-warm .focus-card-arrow{color:#9A6738}
+.focus-card.focus-warm:hover{border-color:#C49060;background:#F4E4D2}
 @media(max-width:880px){
   .layout{grid-template-columns:1fr}
   nav{position:relative;top:0;height:auto;border-right:none;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;padding:3px 0}
@@ -183,6 +190,12 @@ body.wrong-only .wb.empty,body.flagged-only .wb.empty{color:var(--ok);border-col
           <span class="focus-card-tag">L10 · Feature Detection</span>
           <span class="focus-card-title">SIFT Pipeline</span>
           <span class="focus-card-desc">Scale-Invariant Feature Transform — Gaussian pyramid, DoG, 26-neighbour extrema, orientation, and the 128-D descriptor in one visual walkthrough.</span>
+          <span class="focus-card-arrow">&#x2197; open visual guide</span>
+        </a>
+        <a class="focus-card focus-warm" href="focus/sobel-canny.html" target="_blank" rel="noopener noreferrer">
+          <span class="focus-card-tag">L1–L4 · Edge Detection</span>
+          <span class="focus-card-title">Sobel &amp; Canny</span>
+          <span class="focus-card-desc">Edge detection end-to-end — Sobel gradients (Gx, Gy, magnitude, direction) then the full Canny pipeline: blur, non-maximum suppression, double threshold, and hysteresis.</span>
           <span class="focus-card-arrow">&#x2197; open visual guide</span>
         </a>
       </div>
