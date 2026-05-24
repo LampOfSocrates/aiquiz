@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SIFT — Visual Pipeline</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
+
+:root{
+  --bg:#0c0f1a;
+  --panel:#131929;
+  --panel2:#1a2238;
+  --border:#2a3550;
+  --text:#e8edf8;
+  --dim:#7a90b8;
+  --accent:#5b8dee;
+  --gold:#f0b429;
+  --green:#2dd4a8;
+  --red:#f06060;
+  --purple:#b87fff;
+  --mono:'Space Mono',monospace;
+  --sans:'Syne',sans-serif;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);padding:32px 28px;max-width:960px}
+
+/* ── Header ── */
+.title{font-size:28px;font-weight:800;letter-spacing:-0.5px;margin-bottom:2px}
+.title span{color:var(--accent)}
+.subtitle{font-size:12px;color:var(--dim);font-family:var(--mono);margin-bottom:24px;letter-spacing:.5px}
+
+/* ── Section heading ── */
+.phase{display:inline-flex;align-items:center;gap:8px;padding:3px 14px 3px 10px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:.5px;margin:18px 0 10px}
+.phase-d{background:#1b1e3a;border:1px solid #3a4080;color:#9ba8f0}
+.phase-r{background:#0f2620;border:1px solid #1a6650;color:#2dd4a8}
+.phase-d::before{content:'';width:7px;height:7px;border-radius:50%;background:#7b8de8;display:inline-block}
+.phase-r::before{content:'';width:7px;height:7px;border-radius:50%;background:#2dd4a8;display:inline-block}
+
+.step-label{font-size:12px;font-weight:700;color:var(--dim);margin:10px 0 5px;font-family:var(--mono);letter-spacing:.3px}
+
+/* ── Cards ── */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px}
+.card-row{display:flex;gap:10px;margin-bottom:10px}
+.card-row .card{flex:1;margin-bottom:0}
+
+/* ── Why box ── */
+.why{background:#0e1628;border:1px solid #2a3a60;border-radius:8px;padding:10px 14px;font-size:11.5px;color:#a0b4d8;line-height:1.65;margin:6px 0 10px}
+.why strong{color:#c8d8f8}
+.why-cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px}
+.why-col{background:#131929;border:1px solid #243050;border-radius:6px;padding:9px 11px;font-size:11px;line-height:1.6}
+.why-col b{color:var(--gold);display:block;margin-bottom:3px;font-size:11.5px}
+
+/* ── Pyramid grid ── */
+.pyr-wrap{overflow-x:auto}
+.pyr-table{border-collapse:separate;border-spacing:5px;width:100%}
+.pyr-table td{text-align:center;vertical-align:middle}
+.pyr-row-label{font-size:11px;color:var(--dim);font-family:var(--mono);text-align:right!important;padding-right:6px!important;white-space:nowrap;width:70px}
+.pyr-col-label{font-size:10px;color:var(--dim);font-family:var(--mono);padding-bottom:4px}
+.img-box{border-radius:5px;display:block;margin:0 auto;position:relative}
+
+/* blur simulation via layered scan lines + CSS filter */
+.img-sharp{background:linear-gradient(180deg,#1e2d50 0%,#233060 50%,#1e2d50 100%);box-shadow:inset 0 0 0 1px #3b5080}
+.img-sharp::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(180deg,transparent 0px,transparent 3px,rgba(120,180,255,.18) 3px,rgba(120,180,255,.18) 4px);border-radius:5px}
+
+/* seed cell */
+.img-seed{border:1.5px solid var(--gold)!important}
+
+.arr-down{font-size:18px;color:var(--gold);text-align:center;line-height:1;padding:2px 0}
+
+/* ── DoG row ── */
+.dog-row{display:flex;align-items:center;gap:8px;margin:8px 0 6px;flex-wrap:wrap}
+.dog-img{border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-family:var(--mono);color:var(--dim);border:1px solid var(--border)}
+.dog-op{font-size:18px;color:var(--dim);padding:0 2px}
+.dog-result{border-color:var(--accent)!important;background:linear-gradient(135deg,#0e1a30,#0a2240)!important}
+
+/* ── 26-neighbor cube ── */
+.cube-wrap{display:flex;gap:16px;align-items:flex-start}
+.cube-svg-area{flex-shrink:0}
+
+/* ── Histogram ── */
+.hist-wrap{position:relative}
+.hist-bar{display:inline-block;width:8px;vertical-align:bottom;border-radius:2px 2px 0 0;margin-right:1px;transition:height .3s}
+
+/* ── HOG grid ── */
+.hog-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;width:130px}
+.hog-cell{height:30px;border-radius:3px;background:var(--panel2);border:1px solid var(--border);display:flex;align-items:flex-end;justify-content:space-around;padding:2px;position:relative;overflow:hidden}
+.hog-cell.active{border-color:var(--gold)!important;background:#1a1500!important}
+.hog-bar{width:4px;border-radius:1px 1px 0 0;background:var(--accent)}
+.hog-bar.peak{background:var(--gold)}
+
+/* ── Descriptor strip ── */
+.desc-strip{display:flex;gap:2px;margin-top:6px;align-items:flex-end;height:32px}
+.desc-group{display:flex;gap:1px;align-items:flex-end}
+.desc-bit{width:4px;border-radius:1px 1px 0 0}
+
+/* ── Info box ── */
+.info{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11.5px;color:var(--dim);line-height:1.65}
+.info strong{color:var(--text)}
+.badge{display:inline-block;background:#1a2238;border:1px solid #3a5080;border-radius:20px;padding:2px 10px;font-size:11px;font-family:var(--mono);color:#9bb8f0;margin:3px 3px 0 0}
+.badge-g{border-color:#1a5040;color:var(--green)}
+.badge-gold{border-color:#5a4010;color:var(--gold)}
+.formula{font-family:var(--mono);font-size:11px;color:#c0d4f8;background:#0c1525;padding:3px 8px;border-radius:4px;display:inline-block;margin:2px 0}
+
+/* ── Arrow connector ── */
+.connector{text-align:center;color:var(--accent);font-size:22px;margin:4px 0;opacity:.5}
+
+/* ── Normalization steps ── */
+.norm-steps{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
+.norm-step{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:11px;font-family:var(--mono);color:var(--dim)}
+.norm-arrow{color:var(--accent);font-size:14px}
+.norm-step.final{border-color:var(--green);color:var(--green)}
+
+/* ── Orientation circle ── */
+.ori-wrap{display:flex;gap:14px;align-items:flex-start}
+</style>
+</head>
+<body>
+
+<div class="title">SIFT <span>Pipeline</span></div>
+<div class="subtitle">SCALE-INVARIANT FEATURE TRANSFORM · LOWE 2004 · 1 IMAGE → KEYPOINTS + 128-D DESCRIPTOR</div>
+
+<!-- ══════════════════════════════════════
+     PHASE 1 — DETECTION
+══════════════════════════════════════ -->
+<div class="phase phase-d">● PHASE 1 — KEYPOINT DETECTION</div>
+
+<!-- STEP 1: GAUSSIAN PYRAMID -->
+<div class="step-label">① Gaussian scale space — L(x,y,σ) = G(σ) * I</div>
+
+<div class="card-row">
+  <div class="card" style="flex:1">
+    <div style="font-size:12px;color:var(--accent);font-weight:700;margin-bottom:4px">σ (sigma) — blur intensity</div>
+    <div style="font-size:11.5px;color:var(--dim);line-height:1.65">
+      σ is the Gaussian standard deviation in pixels. <strong style="color:var(--text)">Larger σ = heavier blur = finer detail erased.</strong><br>
+      5 σ values per octave: <span class="formula">1.0 → 1.26 → 1.59 → 2.0 → 2.52</span><br>
+      Each step × k = 2<sup>⅓</sup> ≈ 1.26. After 3 steps, σ doubles.
+    </div>
+  </div>
+  <div class="card" style="flex:1">
+    <div style="font-size:12px;color:var(--green);font-weight:700;margin-bottom:4px">Octave — resolution level</div>
+    <div style="font-size:11.5px;color:var(--dim);line-height:1.65">
+      One octave = 5 blurred images at a fixed resolution. To begin the <em>next</em> octave, take the <strong style="color:var(--gold)">σ = 2.0 image</strong> and <strong style="color:var(--text)">halve the width and height (÷2)</strong>. The same σ sequence then repeats at the smaller size.<br>
+      Four octaves total.
+    </div>
+  </div>
+</div>
+
+<!-- PYRAMID VISUAL -->
+<div class="card" style="padding:16px">
+  <!-- column headers -->
+  <table class="pyr-table">
+    <thead>
+      <tr>
+        <td class="pyr-row-label"></td>
+        <td class="pyr-col-label">σ = 1.0<br><span style="color:#5b8dee;font-size:9px">sharpest</span></td>
+        <td class="pyr-col-label">σ = 1.26</td>
+        <td class="pyr-col-label">σ = 1.59</td>
+        <td class="pyr-col-label" style="color:var(--gold)">σ = 2.0<br><span style="font-size:9px">→ seeds next</span></td>
+        <td class="pyr-col-label">σ = 2.52<br><span style="color:#888;font-size:9px">blurriest</span></td>
+        <td></td>
+      </tr>
+    </thead>
+    <tbody id="pyr-body"></tbody>
+  </table>
+  <div style="font-size:10.5px;color:var(--dim);margin-top:8px;font-family:var(--mono)">
+    ★ Amber border = the image that is downsampled to start the next octave &nbsp;·&nbsp;
+    Blue border = sharpest image in each octave
+  </div>
+</div>
+
+<!-- WHY box -->
+<div class="why">
+  <strong>❓ Common question: why do we do <em>both</em> blurring and halving resolution? Isn't that the same effect?</strong><br>
+  Both reduce visible detail — but they serve completely different purposes. SIFT needs both to be accurate <em>and</em> fast.
+  <div class="why-cols">
+    <div class="why-col">
+      <b>🔬 Blurring = fine, continuous scale steps</b>
+      Blurring simulates viewing from further away without changing the pixel count. SIFT uses these small steps to find features at finely-spaced scales inside each resolution level.
+    </div>
+    <div class="why-col">
+      <b>📐 Halving resolution = big jumps, cheap compute</b>
+      Without downsampling, detecting large features would need a massive 121×121 blur kernel on the full-resolution image — enormously slow. After halving, a tiny 5×5 kernel has the <em>same mathematical effect</em> as a 10×10 on the original.
+    </div>
+    <div class="why-col">
+      <b>✅ Result: best of both worlds</b>
+      Blurring = continuous fine-tuned sensitivity. Halving = kernels stay small and fast. Remove either and SIFT either misses features or grinds to a halt.
+    </div>
+  </div>
+</div>
+
+<!-- STEP 2: DoG -->
+<div class="step-label">② Difference of Gaussians — D(x,y,σ) = L(kσ) − L(σ) ≈ σ²∇²G</div>
+<div class="card">
+  <div style="font-size:11.5px;color:var(--dim);margin-bottom:10px;line-height:1.65">
+    Subtract adjacent blurred images <em>within</em> each octave. This approximates the <strong style="color:var(--text)">Laplacian of Gaussian</strong> (LoG) — a blob/edge detector — at a fraction of the cost.<br>
+    5 images per octave → 4 adjacent pairs → <span class="badge badge-g">4 DoG per octave × 4 octaves = 16 DoG images</span>
+  </div>
+  <div class="dog-row" id="dog-row"></div>
+  <div style="font-size:11px;color:var(--dim);margin-top:4px">The bright halos and dark centres reveal blob-like structures at that scale level.</div>
+</div>
+
+<div class="connector">↓</div>
+
+<!-- STEP 3+4: Extrema -->
+<div class="step-label">③ 26-neighbor extrema detection</div>
+<div class="why" style="margin-bottom:6px">
+  <strong>Why 26 neighbors across three scale layers?</strong> A genuine feature must stand out both spatially (8 same-scale neighbours) <em>and</em> across scales (9 from the blurred-more layer + 9 from the blurred-less layer). Only points extreme in all 26 directions are likely to be repeatable from different viewpoints and distances.
+</div>
+
+<div class="card">
+  <div class="cube-wrap">
+    <svg class="cube-svg-area" width="220" height="170" viewBox="0 0 220 170">
+      <defs>
+        <linearGradient id="gfade" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#1e2d50"/>
+          <stop offset="100%" stop-color="#131929"/>
+        </linearGradient>
+      </defs>
+      <!-- three 3×3 grids stacked to show DoG layers -->
+      <!-- back grid: scale k+1 -->
+      <g opacity="0.55">
+        <text font-family="Space Mono,monospace" font-size="9.5" fill="#7a90b8" x="14" y="24">scale k+1</text>
+        <rect x="14" y="28" width="78" height="60" rx="3" fill="url(#gfade)" stroke="#2a3550" stroke-width="0.8"/>
+        <line x1="40" y1="28" x2="40" y2="88" stroke="#2a3550" stroke-width="0.7"/>
+        <line x1="66" y1="28" x2="66" y2="88" stroke="#2a3550" stroke-width="0.7"/>
+        <line x1="14" y1="48" x2="92" y2="48" stroke="#2a3550" stroke-width="0.7"/>
+        <line x1="14" y1="68" x2="92" y2="68" stroke="#2a3550" stroke-width="0.7"/>
+        <text font-family="Space Mono,monospace" font-size="8.5" fill="#4a6090" x="44" y="43" text-anchor="middle">9</text>
+        <text font-family="Space Mono,monospace" font-size="8.5" fill="#4a6090" x="44" y="82" text-anchor="middle">neighbors</text>
+      </g>
+      <!-- middle grid: scale k (in focus) -->
+      <g>
+        <text font-family="Space Mono,monospace" font-size="9.5" fill="#9ba8f0" x="28" y="72">scale k</text>
+        <rect x="28" y="76" width="78" height="60" rx="3" fill="#1a2238" stroke="#3a5080" stroke-width="1.2"/>
+        <line x1="54" y1="76" x2="54" y2="136" stroke="#2a3550" stroke-width="0.7"/>
+        <line x1="80" y1="76" x2="80" y2="136" stroke="#2a3550" stroke-width="0.7"/>
+        <line x1="28" y1="96" x2="106" y2="96" stroke="#2a3550" stroke-width="0.7"/>
+        <line x1="28" y1="116" x2="106" y2="116" stroke="#2a3550" stroke-width="0.7"/>
+        <!-- centre cell highlighted -->
+        <rect x="54" y="96" width="26" height="20" rx="2" fill="#1e1040" stroke="#7b74d8" stroke-width="1.8"/>
+        <circle cx="67" cy="106" r="5" fill="#7b74d8"/>
+        <text font-family="Space Mono,monospace" font-size="8.5" fill="#7b74d8" x="67" y="148" text-anchor="middle">candidate</text>
+        <text font-family="Space Mono,monospace" font-size="8.5" fill="#4a6090" x="40" y="91" text-anchor="middle">8</text>
+        <text font-family="Space Mono,monospace" font-size="8.5" fill="#4a6090" x="40" y="130" text-anchor="middle">nbrs</text>
+      </g>
+      <!-- front grid: scale k-1 -->
+      <g opacity="0.55">
+        <text font-family="Space Mono,monospace" font-size="9.5" fill="#7a90b8" x="44" y="118">scale k−1</text>
+        <rect x="44" y="124" width="78" height="60" rx="3" fill="url(#gfade)" stroke="#2a3550" stroke-width="0.8"/>
+        <line x1="70" y1="124" x2="70" y2="184" stroke="#2a3550" stroke-width="0.7"/>
+        <line x1="96" y1="124" x2="96" y2="184" stroke="#2a3550" stroke-width="0.7"/>
+        <line x1="44" y1="144" x2="122" y2="144" stroke="#2a3550" stroke-width="0.7"/>
+        <line x1="44" y1="164" x2="122" y2="164" stroke="#2a3550" stroke-width="0.7"/>
+        <text font-family="Space Mono,monospace" font-size="8.5" fill="#4a6090" x="60" y="139" text-anchor="middle">9</text>
+        <text font-family="Space Mono,monospace" font-size="8.5" fill="#4a6090" x="60" y="178" text-anchor="middle">neighbors</text>
+      </g>
+      <!-- connecting dashed lines for 3D effect -->
+      <line x1="14" y1="28" x2="28" y2="76" stroke="#3a5080" stroke-width="0.5" stroke-dasharray="3 2"/>
+      <line x1="92" y1="28" x2="106" y2="76" stroke="#3a5080" stroke-width="0.5" stroke-dasharray="3 2"/>
+      <line x1="14" y1="88" x2="28" y2="136" stroke="#3a5080" stroke-width="0.5" stroke-dasharray="3 2"/>
+      <line x1="92" y1="88" x2="106" y2="136" stroke="#3a5080" stroke-width="0.5" stroke-dasharray="3 2"/>
+      <line x1="28" y1="76" x2="44" y2="124" stroke="#3a5080" stroke-width="0.5" stroke-dasharray="3 2"/>
+      <line x1="106" y1="76" x2="122" y2="124" stroke="#3a5080" stroke-width="0.5" stroke-dasharray="3 2"/>
+      <line x1="28" y1="136" x2="44" y2="184" stroke="#3a5080" stroke-width="0.5" stroke-dasharray="3 2"/>
+      <line x1="106" y1="136" x2="122" y2="184" stroke="#3a5080" stroke-width="0.5" stroke-dasharray="3 2"/>
+      <!-- total count -->
+      <text font-family="Syne,sans-serif" font-size="12" font-weight="700" fill="#9ba8f0" x="155" y="80" text-anchor="middle">9 + 8 + 9</text>
+      <text font-family="Syne,sans-serif" font-size="22" font-weight="800" fill="#5b8dee" x="155" y="108" text-anchor="middle">= 26</text>
+      <text font-family="Space Mono,monospace" font-size="10" fill="#7a90b8" x="155" y="124" text-anchor="middle">neighbors</text>
+      <text font-family="Space Mono,monospace" font-size="9" fill="#4a6090" x="155" y="140" text-anchor="middle">must be strict</text>
+      <text font-family="Space Mono,monospace" font-size="9" fill="#4a6090" x="155" y="153" text-anchor="middle">MAX or MIN</text>
+    </svg>
+    <div style="flex:1">
+      <div class="info">
+        <strong>Output of step ③:</strong> Integer candidate (x, y, σ) positions — roughly 1% of all pixels survive.<br><br>
+        <div class="step-label" style="margin-top:6px">④ Refinement — three filters in sequence</div>
+        <div style="font-size:11px;color:var(--dim);margin-top:4px;line-height:1.7">
+          <span style="color:var(--accent)">Taylor expansion</span> — nudges each candidate to its true sub-pixel/sub-scale peak (up to 5 iterations). <em style="color:#6a80a0">Why: the 26-neighbor check is coarse; true extrema lie between grid points.</em><br><br>
+          <span style="color:var(--accent)">Contrast filter</span> — reject if |D(x̂)| &lt; 0.03. <em style="color:#6a80a0">Why: faint extrema are just noise and are not stable across views.</em><br><br>
+          <span style="color:var(--accent)">Edge filter</span> — reject if Hessian ratio r = λ_max/λ_min &gt; 10. <em style="color:#6a80a0">Why: points on a straight edge are poorly localised along it — a tiny shift produces a completely different descriptor, making them useless for matching.</em>
+        </div>
+        <div style="margin-top:8px">
+          <span class="badge">input: ~1000s candidates</span>
+          <span class="badge badge-g">output: ~100–500 stable keypoints (x, y, σ)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="connector">↓</div>
+
+<!-- STEP 5: Orientation -->
+<div class="step-label">⑤ Orientation assignment — 36-bin gradient histogram → θ*</div>
+<div class="card">
+  <div class="ori-wrap">
+    <!-- Gradient circle -->
+    <svg width="130" height="130" viewBox="0 0 130 130">
+      <circle cx="65" cy="65" r="52" fill="#131929" stroke="#2a3550" stroke-width="1"/>
+      <!-- gradient arrows around circle, simulating neighbourhood -->
+      <g id="grad-arrows"></g>
+      <circle cx="65" cy="65" r="6" fill="#7b74d8"/>
+      <!-- dominant direction -->
+      <line x1="65" y1="65" x2="105" y2="30" stroke="#f0b429" stroke-width="2.5" stroke-linecap="round" marker-end="url(#arG)"/>
+      <defs>
+        <marker id="arG" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+          <path d="M1 1L7 5L1 9" fill="none" stroke="#f0b429" stroke-width="2" stroke-linecap="round"/>
+        </marker>
+      </defs>
+      <text font-family="Space Mono,monospace" font-size="9" fill="#f0b429" x="65" y="126" text-anchor="middle">θ* dominant dir</text>
+    </svg>
+    <!-- Histogram -->
+    <div style="flex:1">
+      <div style="font-size:11px;color:var(--dim);margin-bottom:6px;font-family:var(--mono)">36-bin histogram · 10° per bin · votes = |∇| × Gaussian weight</div>
+      <div style="display:flex;align-items:flex-end;gap:1px;height:60px;padding-bottom:2px" id="ori-hist"></div>
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dim);font-family:var(--mono);margin-top:2px"><span>0°</span><span>90°</span><span>180°</span><span>270°</span><span>360°</span></div>
+      <div style="font-size:11px;color:var(--dim);margin-top:8px;line-height:1.6">
+        Peak bin → <span class="formula">θ* = 30°</span> (sub-bin via parabola fit).<br>
+        Secondary peaks &gt;80% of main → <strong style="color:var(--text)">additional keypoint</strong> same (x,y,σ), different θ*.<br>
+        <span class="badge badge-gold">output: (x, y, σ, θ*)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     PHASE 2 — DESCRIPTION
+══════════════════════════════════════ -->
+<div class="phase phase-r">● PHASE 2 — KEYPOINT DESCRIPTION</div>
+
+<!-- STEP 6: Canonical patch -->
+<div class="step-label">⑥ Canonical patch — sample ≈10σ region, rotate by −θ*</div>
+<div class="card">
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <!-- image with keypoint -->
+    <svg width="100" height="80" viewBox="0 0 100 80">
+      <rect width="100" height="80" rx="5" fill="#131929" stroke="#2a3550" stroke-width="1"/>
+      <line x1="0" y1="20" x2="100" y2="20" stroke="#2a3550" stroke-width="0.4"/>
+      <line x1="0" y1="40" x2="100" y2="40" stroke="#2a3550" stroke-width="0.4"/>
+      <line x1="0" y1="60" x2="100" y2="60" stroke="#2a3550" stroke-width="0.4"/>
+      <line x1="33" y1="0" x2="33" y2="80" stroke="#2a3550" stroke-width="0.4"/>
+      <line x1="66" y1="0" x2="66" y2="80" stroke="#2a3550" stroke-width="0.4"/>
+      <circle cx="55" cy="38" r="22" fill="none" stroke="#5b8dee" stroke-width="1.2" stroke-dasharray="4 2"/>
+      <circle cx="55" cy="38" r="3" fill="#7b74d8"/>
+      <line x1="55" y1="38" x2="70" y2="22" stroke="#f0b429" stroke-width="1.8" stroke-linecap="round"/>
+      <text font-family="Space Mono,monospace" font-size="8" fill="#7a90b8" x="50" y="74" text-anchor="middle">original image</text>
+    </svg>
+    <div style="font-size:20px;color:var(--dim)">→</div>
+    <!-- tilted patch -->
+    <svg width="80" height="80" viewBox="0 0 80 80">
+      <g transform="translate(40,40) rotate(-30)">
+        <rect x="-28" y="-28" width="56" height="56" rx="4" fill="#131929" stroke="#5b8dee" stroke-width="1.2"/>
+        <line x1="-28" y1="0" x2="28" y2="0" stroke="#2a3550" stroke-width="0.5"/>
+        <line x1="0" y1="-28" x2="0" y2="28" stroke="#2a3550" stroke-width="0.5"/>
+      </g>
+      <line x1="40" y1="40" x2="57" y2="21" stroke="#f0b429" stroke-width="1.8" stroke-linecap="round"/>
+      <text font-family="Space Mono,monospace" font-size="8" fill="#7a90b8" x="40" y="76" text-anchor="middle">at scale σ</text>
+    </svg>
+    <div style="font-size:14px;color:var(--dim);font-family:var(--mono)">rotate −θ* →</div>
+    <!-- canonical patch -->
+    <svg width="80" height="80" viewBox="0 0 80 80">
+      <rect x="8" y="4" width="64" height="64" rx="4" fill="#131929" stroke="#2dd4a8" stroke-width="1.5"/>
+      <!-- 4x4 grid lines -->
+      <line x1="24" y1="4" x2="24" y2="68" stroke="#2a3550" stroke-width="0.6"/>
+      <line x1="40" y1="4" x2="40" y2="68" stroke="#2a3550" stroke-width="0.6"/>
+      <line x1="56" y1="4" x2="56" y2="68" stroke="#2a3550" stroke-width="0.6"/>
+      <line x1="8" y1="20" x2="72" y2="20" stroke="#2a3550" stroke-width="0.6"/>
+      <line x1="8" y1="36" x2="72" y2="36" stroke="#2a3550" stroke-width="0.6"/>
+      <line x1="8" y1="52" x2="72" y2="52" stroke="#2a3550" stroke-width="0.6"/>
+      <!-- upright arrow = rotation removed -->
+      <line x1="40" y1="50" x2="40" y2="12" stroke="#f0b429" stroke-width="1.8" stroke-linecap="round" marker-end="url(#arG)"/>
+      <!-- dimension label -->
+      <line x1="8" y1="74" x2="72" y2="74" stroke="#3a5080" stroke-width="0.7" marker-end="url(#arG)" marker-start="url(#arG)"/>
+      <text font-family="Space Mono,monospace" font-size="8" fill="#7a90b8" x="40" y="80" text-anchor="middle">16 px</text>
+    </svg>
+    <div class="info" style="flex:1;min-width:180px">
+      <strong>Inverse mapping</strong> — no literal image rotation. Each output pixel in the 16×16 canonical grid is sampled from the original via bilinear interpolation at the rotated grid position.<br>
+      <span class="badge">radius ≈ 10σ px in original</span>
+      <span class="badge badge-g">output: upright 16×16 patch</span>
+    </div>
+  </div>
+</div>
+
+<div class="connector">↓</div>
+
+<!-- STEP 7: HOG descriptor -->
+<div class="step-label">⑦ HOG descriptor — 4×4 cells × 8 orientation bins = 128-D</div>
+<div class="card">
+  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+    <!-- HOG grid -->
+    <div>
+      <div style="font-size:11px;color:var(--dim);font-family:var(--mono);margin-bottom:5px">4×4 grid of cells (4 px each)</div>
+      <div class="hog-grid" id="hog-grid"></div>
+      <div style="font-size:10px;color:var(--dim);margin-top:5px;font-family:var(--mono)">amber = expanded cell →</div>
+    </div>
+    <!-- expanded cell -->
+    <div>
+      <div style="font-size:11px;color:var(--dim);font-family:var(--mono);margin-bottom:5px">one cell · 8 bins · 0°–360° relative to θ*</div>
+      <div style="display:flex;align-items:flex-end;gap:2px;height:64px;padding-bottom:2px" id="cell-hist"></div>
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dim);font-family:var(--mono);width:180px;margin-top:2px"><span>0°</span><span>90°</span><span>180°</span><span>270°</span><span>315°</span></div>
+    </div>
+    <!-- formula + output -->
+    <div class="info" style="flex:1;min-width:200px">
+      <div style="font-size:22px;font-weight:800;color:var(--green);font-family:var(--sans);margin-bottom:6px">4 × 4 × 8 = 128-D</div>
+      <div style="font-size:11px;color:var(--dim);line-height:1.65">
+        <strong style="color:var(--text)">Trilinear interpolation</strong> of gradient votes across cells, bins, and scales.<br>
+        <strong style="color:var(--text)">Gaussian window</strong> σ_w = 8 px to weight centre pixels more.<br>
+        Orientations are <strong style="color:var(--text)">relative to θ*</strong> → rotation invariant.
+      </div>
+      <div class="norm-steps">
+        <div class="norm-step">L2 norm</div>
+        <div class="norm-arrow">→</div>
+        <div class="norm-step">clamp 0.2</div>
+        <div class="norm-arrow">→</div>
+        <div class="norm-step">re-norm</div>
+        <div class="norm-arrow">→</div>
+        <div class="norm-step final">128-D ✓</div>
+      </div>
+      <div style="font-size:10.5px;color:var(--dim);margin-top:5px">Clamping at 0.2 suppresses dominant gradients that would otherwise overwhelm the descriptor, giving illumination invariance.</div>
+    </div>
+  </div>
+  <!-- 128-D bar strip -->
+  <div style="font-size:11px;color:var(--dim);font-family:var(--mono);margin-top:12px;margin-bottom:4px">128-D descriptor vector — 16 colour groups × 8 values (one group per cell)</div>
+  <div style="display:flex;gap:2px;align-items:flex-end;height:36px" id="desc-strip"></div>
+  <div style="font-size:10px;color:var(--dim);font-family:var(--mono);margin-top:3px">After L2-normalise → clamp 0.2 → re-normalise</div>
+</div>
+
+<!-- Summary -->
+<div class="card" style="background:#0a1020;border-color:#1e3060;margin-top:14px">
+  <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px;font-family:var(--mono)">SIFT OUTPUT PER KEYPOINT</div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <div class="info" style="flex:1;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#9ba8f0">( x, y )</div>
+      <div style="font-size:11px;color:var(--dim);margin-top:3px">sub-pixel location</div>
+    </div>
+    <div class="info" style="flex:1;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:var(--green)">σ</div>
+      <div style="font-size:11px;color:var(--dim);margin-top:3px">characteristic scale</div>
+    </div>
+    <div class="info" style="flex:1;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:var(--gold)">θ*</div>
+      <div style="font-size:11px;color:var(--dim);margin-top:3px">dominant orientation</div>
+    </div>
+    <div class="info" style="flex:2;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:var(--purple)">128-D</div>
+      <div style="font-size:11px;color:var(--dim);margin-top:3px">descriptor vector · scale + rotation + illumination invariant</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── JS: build all dynamic visuals ── -->
+<script>
+// ─── Pyramid ───────────────────────────────────────────────────
+const pyrData=[
+  {label:'Octave 1\n(512×512)',lines:6,w:60,h:48,seed:3},
+  {label:'Octave 2\n(256×256)',lines:4,w:42,h:34,seed:3},
+  {label:'Octave 3\n(128×128)',lines:2,w:28,h:22,seed:3},
+  {label:'Octave 4\n(64×64)',lines:0,w:18,h:14,seed:3},
+];
+const sigmas=[1.0,1.26,1.59,2.0,2.52];
+const tbody=document.getElementById('pyr-body');
+pyrData.forEach(function(row,ri){
+  const tr=document.createElement('tr');
+  // row label
+  const lbl=document.createElement('td');
+  lbl.className='pyr-row-label';
+  lbl.innerHTML=row.label.replace('\n','<br>');
+  tr.appendChild(lbl);
+  // 5 image boxes
+  sigmas.forEach(function(s,ci){
+    const td=document.createElement('td');
+    const blur=ci*(2/(sigmas.length-1));
+    const opacity=Math.max(0.14,0.85-ci*0.12);
+    const isSeed=ci===row.seed;
+    const isSharp=ci===0;
+    const lineCount=Math.max(0,row.lines-ci*1.5|0);
+    // build image div
+    let lines='';
+    for(let l=0;l<lineCount;l++){
+      const yp=Math.round(100*(l+1)/(lineCount+1));
+      lines+=`<div style="position:absolute;top:${yp}%;left:0;right:0;height:1px;background:rgba(100,160,255,${opacity*(0.9-ci*0.12)})"></div>`;
+    }
+    td.innerHTML=`<div style="
+      width:${row.w}px;height:${row.h}px;border-radius:5px;
+      background:linear-gradient(160deg,#1a2a48,#0e1828);
+      border:${isSeed?'1.8px solid #f0b429':isSharp?'1.5px solid #5b8dee':'1px solid #2a3550'};
+      display:inline-block;position:relative;overflow:hidden;
+      filter:blur(${blur*0.5}px);
+      box-shadow:${isSeed?'0 0 8px rgba(240,180,40,0.25)':''};
+      vertical-align:middle
+    ">${lines}${isSeed?`<div style="position:absolute;bottom:2px;right:2px;width:5px;height:5px;border-radius:50%;background:#f0b429;opacity:0.8"></div>`:''}
+    </div>`;
+    tr.appendChild(td);
+  });
+  // right annotation
+  const ann=document.createElement('td');
+  ann.style.cssText='font-size:10.5px;color:#7a90b8;font-family:Space Mono,monospace;padding-left:8px;white-space:nowrap;vertical-align:middle';
+  ann.textContent=row.label.split('\n')[1];
+  tr.appendChild(ann);
+  tbody.appendChild(tr);
+
+  // ÷2 arrow between rows
+  if(ri<pyrData.length-1){
+    const arrowTr=document.createElement('tr');
+    const arrowTd=document.createElement('td');
+    arrowTd.colSpan=7;
+    arrowTd.innerHTML=`<div style="text-align:center;font-size:11px;color:#f0b429;font-family:Space Mono,monospace;padding:2px 0">↓ downsample ÷2 (σ=2.0 image → new octave start)</div>`;
+    arrowTr.appendChild(arrowTd);
+    tbody.appendChild(arrowTr);
+  }
+});
+
+// ─── DoG row ───────────────────────────────────────────────────
+const dogRow=document.getElementById('dog-row');
+const dogColors=['rgba(40,80,160,0.6)','rgba(30,120,90,0.5)','rgba(120,80,160,0.5)','rgba(100,50,50,0.5)'];
+for(let i=0;i<4;i++){
+  if(i>0){const op=document.createElement('div');op.className='dog-op';op.textContent='−';dogRow.appendChild(op);}
+  const di=document.createElement('div');
+  di.className='dog-img'+(i===3?' dog-result':'');
+  const blur=1.2-i*0.25;
+  di.style.cssText=`width:62px;height:48px;background:linear-gradient(135deg,#131929,#0e1828);filter:blur(${blur}px);flex-shrink:0`;
+  // inner glow
+  di.innerHTML=`<div style="width:100%;height:100%;background:radial-gradient(circle at 40% 40%,${dogColors[i]},transparent 70%);border-radius:4px"></div>`;
+  dogRow.appendChild(di);
+}
+const eq=document.createElement('div');eq.className='dog-op';eq.textContent='=';dogRow.appendChild(eq);
+const res=document.createElement('div');
+res.className='dog-img dog-result';
+res.style.cssText='width:62px;height:48px;flex-shrink:0;position:relative;overflow:hidden';
+res.innerHTML=`<div style="width:100%;height:100%;background:radial-gradient(circle at 50% 50%,rgba(91,141,238,0.5) 0%,rgba(20,40,80,0.2) 40%,rgba(0,0,0,0) 70%),linear-gradient(135deg,#0e1828,#131929);border-radius:4px"></div>`;
+dogRow.appendChild(res);
+const doglabel=document.createElement('div');
+doglabel.style.cssText='font-size:10.5px;color:#7a90b8;font-family:Space Mono,monospace;margin-left:8px;align-self:center';
+doglabel.textContent='DoG image\n(edges/blobs visible)';
+dogRow.appendChild(doglabel);
+
+// ─── Gradient arrows on circle ───────────────────────────────────────
+const gArr=document.getElementById('grad-arrows');
+const angles=[10,40,80,120,160,200,240,280,320,355];
+const radii=[32,38,42,36,40,35,38,44,36,40];
+angles.forEach(function(a,i){
+  const rad=a*Math.PI/180;
+  const r=radii[i];
+  const cx=65+r*Math.cos(rad);
+  const cy=65+r*Math.sin(rad);
+  // random short arrow
+  const angR=(a+20+Math.random()*60)*Math.PI/180;
+  const len=9;
+  const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+  line.setAttribute('x1',cx);line.setAttribute('y1',cy);
+  line.setAttribute('x2',cx+len*Math.cos(angR));line.setAttribute('y2',cy+len*Math.sin(angR));
+  line.setAttribute('stroke','#5b8dee');line.setAttribute('stroke-width','1.5');line.setAttribute('opacity','0.65');
+  gArr.appendChild(line);
+});
+
+// ─── Orientation histogram ───────────────────────────────────────
+const oriHist=document.getElementById('ori-hist');
+const oriData=[5,8,18,70,35,20,12,7,5,4,4,4,3,4,4,5,5,5,4,4,4,4,4,4,5,6,6,7,8,9,9,10,10,11,12,10];
+oriData.forEach(function(h,i){
+  const bar=document.createElement('div');
+  const pct=Math.round(h*56/70);
+  bar.style.cssText=`width:8px;height:${pct}px;border-radius:2px 2px 0 0;background:${i===3?'#f0b429':'#3a5580'};opacity:${i===3?1:0.6};flex-shrink:0`;
+  oriHist.appendChild(bar);
+});
+
+// ─── HOG grid ───────────────────────────────────────────────────
+const hogGrid=document.getElementById('hog-grid');
+const cellColors=['#534AB7','#1D9E75','#D85A30','#378ADD','#D4537E','#639922','#BA7517','#E24B4A','#7F77DD','#5DCAA5','#F0997B','#85B7EB','#ED93B1','#97C459','#EF9F27','#F09595'];
+let seed=7919;function rng(){seed=(seed*1664525+1013904223)&0x7fffffff;return seed/0x7fffffff;}
+for(let i=0;i<16;i++){
+  const cell=document.createElement('div');
+  cell.className='hog-cell'+(i===5?' active':'');
+  cell.style.borderColor=cellColors[i]+'55';
+  for(let b=0;b<8;b++){
+    const bar=document.createElement('div');
+    const h=Math.max(4,Math.round(18*rng()+4));
+    bar.style.cssText=`width:3px;height:${h}px;border-radius:1px 1px 0 0;background:${i===5?(b===3?'#f0b429':'#5b8dee'):cellColors[i]};opacity:0.8`;
+    cell.appendChild(bar);
+  }
+  hogGrid.appendChild(cell);
+}
+
+// ─── Expanded cell histogram ───────────────────────────────────
+const cellH=document.getElementById('cell-hist');
+const cellData=[8,22,48,80,56,32,16,7];
+cellData.forEach(function(h,i){
+  const bar=document.createElement('div');
+  const pct=Math.round(h*58/80);
+  bar.style.cssText=`width:20px;height:${pct}px;border-radius:3px 3px 0 0;background:${i===3?'#f0b429':'#5b8dee'};opacity:${i===3?1:0.65};flex-shrink:0`;
+  cellH.appendChild(bar);
+});
+
+// ─── 128-D descriptor strip ───────────────────────────────────
+const strip=document.getElementById('desc-strip');
+seed=7919;
+for(let g=0;g<16;g++){
+  for(let b=0;b<8;b++){
+    const bit=document.createElement('div');
+    const h=Math.max(4,Math.round(28*rng()+4));
+    bit.style.cssText=`width:4px;height:${h}px;border-radius:1px 1px 0 0;background:${cellColors[g]};opacity:0.78;flex-shrink:0`;
+    strip.appendChild(bit);
+  }
+  // small gap between groups
+  if(g<15){
+    const gap=document.createElement('div');gap.style.cssText='width:2px;flex-shrink:0';strip.appendChild(gap);
+  }
+}
+</script>
+</body>
+</html>
