@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backprop by Hand — Quiz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#f4efe6;--ink:#1c2a33;--ink-soft:#5c6b72;--rule:#d8cfbf;--accent:#b4451f;--ok:#3f7a4d;--no:#b4451f}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:'Spline Sans Mono',monospace;line-height:1.5;
+    padding:40px 20px;background-image:radial-gradient(circle at 1px 1px,rgba(28,42,51,.05) 1px,transparent 0);background-size:18px 18px}
+  .card{max-width:760px;margin:0 auto;background:#fbf8f2;border:1px solid var(--rule);
+    box-shadow:14px 14px 0 rgba(28,42,51,.08);padding:44px 46px 40px}
+  .tag{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);font-weight:600;margin-bottom:10px}
+  h1{font-family:'Fraunces',serif;font-weight:900;font-size:40px;line-height:.96;letter-spacing:-.01em;margin-bottom:8px}
+  .lede{font-size:13px;color:var(--ink-soft);max-width:62ch;margin-bottom:6px}
+  h2{font-family:'Fraunces',serif;font-weight:900;font-size:21px;margin:30px 0 4px}
+  h2 .n{color:var(--accent);font-size:14px;margin-right:7px}
+  .rule{height:1px;background:var(--rule);margin:28px 0 22px}
+  b{color:var(--ink);font-weight:600}
+  code{background:rgba(28,42,51,.06);padding:1px 5px;border-radius:3px;font-size:12px}
+  /* diagram + givens */
+  .top{display:flex;gap:26px;flex-wrap:wrap;align-items:center;margin:18px 0 6px}
+  svg{flex:1;min-width:280px;max-width:380px;height:auto}
+  .givens{flex:1;min-width:240px;font-size:12px}
+  .givens table{border-collapse:collapse;width:100%}
+  .givens td{padding:3px 6px;border-bottom:1px solid var(--rule)}
+  .givens td:first-child{color:var(--ink-soft)}
+  .givens .h{font-family:'Fraunces',serif;font-weight:600;color:var(--accent);padding-top:8px;border:none}
+  .givens .off{color:var(--ink-soft);font-style:italic}
+  .note{font-size:11.5px;color:var(--ink-soft);background:#f3ecdd;border-left:2px solid var(--accent);
+    padding:10px 14px;border-radius:0 6px 6px 0;margin:14px 0}
+  /* questions */
+  .q{border:1px solid var(--rule);border-radius:8px;padding:14px 18px;margin:12px 0;background:#fbf8f2;transition:.2s}
+  .q.right{border-color:var(--ok);background:#f1f6f0}
+  .q .qhead{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+  .q .qn{font-family:'Fraunces',serif;font-weight:600;color:var(--accent);font-size:15px}
+  .q .ask{font-size:13px}
+  .q .ask .quant{font-weight:600;color:var(--ink)}
+  .q .row{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  .q input{font-family:inherit;font-size:14px;padding:7px 10px;border:1px solid var(--rule);border-radius:6px;
+    width:130px;background:#fff;color:var(--ink)}
+  .q input:focus{outline:none;border-color:var(--accent)}
+  .q button{font-family:inherit;font-size:12px;padding:7px 14px;border-radius:6px;cursor:pointer;border:1px solid var(--ink)}
+  .q .check{background:var(--ink);color:var(--paper)}
+  .q .reveal{background:transparent;color:var(--ink-soft);border-color:var(--rule)}
+  .q .fb{font-size:12.5px;margin-left:4px;font-weight:600}
+  .q .fb.ok{color:var(--ok)}.q .fb.no{color:var(--no)}
+  .work{display:none;margin-top:10px;font-size:12px;background:#f3ecdd;border-radius:6px;padding:11px 14px;line-height:1.7}
+  .work.show{display:block}
+  .work .ans{font-weight:600;background:rgba(63,122,77,.15);padding:0 6px;border-radius:3px;color:var(--ok)}
+  .scorebar{position:sticky;top:10px;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:10px;
+    background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:30px;font-size:13px;margin:6px 0 18px;flex-wrap:wrap}
+  .scorebar b{color:#fff}
+  .scorebar .ctrls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .scorebar button{font-family:inherit;font-size:11px;background:transparent;color:var(--paper);border:1px solid rgba(244,239,230,.4);border-radius:20px;padding:5px 12px;cursor:pointer}
+  .scorebar button:hover{background:rgba(244,239,230,.1)}
+  .scorebar button.primary{background:var(--accent);border-color:var(--accent)}
+  .scorebar button.primary:hover{background:#c95023}
+  .scorebar label{display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;user-select:none;padding:5px 10px;border:1px solid rgba(244,239,230,.4);border-radius:20px}
+  .scorebar label input{accent-color:var(--accent);cursor:pointer;margin:0}
+  @media(max-width:560px){.card{padding:30px 22px}h1{font-size:30px}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="tag">Neural Networks · Self-Test</div>
+  <h1>Backprop by Hand</h1>
+  <p class="lede">A 2-2-2 network: 2 inputs → 2 sigmoid hidden units → 2 sigmoid outputs. Work each value out with pen and paper, type your answer, and hit <b>Check</b>. Round to <b>4 decimals</b>. Stuck? <b>Reveal</b> shows the full working. Sigmoid σ(x)=1/(1+e⁻ˣ), and crucially σ′ = σ(1−σ).</p>
+
+  <div class="top">
+    <svg viewBox="0 0 320 220" xmlns="http://www.w3.org/2000/svg" font-family="Spline Sans Mono" font-size="9">
+      <g stroke="#cabfa8" stroke-width="1.4">
+        <line x1="60" y1="60" x2="160" y2="60"/><line x1="60" y1="60" x2="160" y2="160"/>
+        <line x1="60" y1="160" x2="160" y2="60"/><line x1="60" y1="160" x2="160" y2="160"/>
+        <line x1="160" y1="60" x2="260" y2="60"/><line x1="160" y1="60" x2="260" y2="160"/>
+        <line x1="160" y1="160" x2="260" y2="60"/><line x1="160" y1="160" x2="260" y2="160"/>
+      </g>
+      <g fill="#5c6b72" font-size="8.5">
+        <text x="100" y="52">w1</text><text x="92" y="118">w3</text>
+        <text x="118" y="104">w2</text><text x="110" y="170">w4</text>
+        <text x="200" y="52">w5</text><text x="192" y="118">w7</text>
+        <text x="218" y="104">w6</text><text x="210" y="170">w8</text>
+      </g>
+      <g>
+        <circle cx="60" cy="60" r="17" fill="#eee6d6" stroke="#1c2a33" stroke-width="1.5"/>
+        <circle cx="60" cy="160" r="17" fill="#eee6d6" stroke="#1c2a33" stroke-width="1.5"/>
+        <circle cx="160" cy="60" r="17" fill="#fff" stroke="#1c2a33" stroke-width="1.5"/>
+        <circle cx="160" cy="160" r="17" fill="#fff" stroke="#1c2a33" stroke-width="1.5"/>
+        <circle cx="260" cy="60" r="17" fill="#f0d9cf" stroke="#b4451f" stroke-width="1.8"/>
+        <circle cx="260" cy="160" r="17" fill="#f0d9cf" stroke="#b4451f" stroke-width="1.8"/>
+      </g>
+      <g fill="#1c2a33" text-anchor="middle" font-weight="600" font-size="10">
+        <text x="60" y="63">x1</text><text x="60" y="163">x2</text>
+        <text x="160" y="63">h1</text><text x="160" y="163">h2</text>
+        <text x="260" y="63">o1</text><text x="260" y="163">o2</text>
+      </g>
+      <g fill="#5c6b72" text-anchor="middle" font-size="8">
+        <text x="60" y="92">inputs</text><text x="160" y="195">hidden</text><text x="260" y="195">outputs</text>
+      </g>
+    </svg>
+    <div class="givens">
+      <table><tbody id="givens-body"></tbody></table>
+    </div>
+  </div>
+
+  <div class="scorebar">
+    <span>Score: <b id="score">0</b> / <b id="total">0</b></span>
+    <div class="ctrls">
+      <label title="Toggle bias terms on/off — when off, all biases are 0"><input type="checkbox" id="bias" checked> include bias</label>
+      <button id="newnum" class="primary">New numbers</button>
+      <button id="reset">Reset answers</button>
+    </div>
+  </div>
+
+  <div id="quiz"></div>
+
+  <div class="note" style="margin-top:24px"><b>The big idea you're testing.</b> Forward pass: push inputs through to get outputs and the error. Backward pass: an output neuron's "blame" is δ = (o−t)·σ′. A hidden neuron's blame is the <i>sum of downstream blames it fed into</i>, each weighted by the connecting weight, times its own σ′ — that sum is the chain rule in action. Every weight's gradient is just <code>δ_downstream × activation_upstream</code>, and you step it down by η·gradient.</div>
+</div>
+
+<script>
+const ETA = 0.5;
+let useBias = true;
+const s = {};
+const solved = new Set();
+
+function rand(min, max, d=2){
+  const v = Math.random()*(max-min) + min;
+  const m = Math.pow(10, d);
+  return Math.round(v*m)/m;
+}
+function sig(x){return 1/(1+Math.exp(-x));}
+function f4(n){return n.toFixed(4);}
+function f2(n){return n.toFixed(2);}
+function tolOf(ans){return Math.max(0.002, Math.abs(ans)*0.012);}
+
+function generate(){
+  s.x1 = rand(0.20, 0.80); s.x2 = rand(0.20, 0.80);
+  s.t1 = rand(0.10, 0.90); s.t2 = rand(0.10, 0.90);
+  s.w1 = rand(0.10, 0.60); s.w2 = rand(0.10, 0.60);
+  s.w3 = rand(0.10, 0.60); s.w4 = rand(0.10, 0.60);
+  s.w5 = rand(0.10, 0.60); s.w6 = rand(0.10, 0.60);
+  s.w7 = rand(0.10, 0.60); s.w8 = rand(0.10, 0.60);
+  s.bh1 = rand(0.05, 0.25); s.bh2 = rand(0.05, 0.25);
+  s.bo1 = rand(0.05, 0.25); s.bo2 = rand(0.05, 0.25);
+}
+
+function compute(){
+  const k = useBias ? 1 : 0;
+  s.bh1e = s.bh1*k; s.bh2e = s.bh2*k;
+  s.bo1e = s.bo1*k; s.bo2e = s.bo2*k;
+  s.net_h1 = s.w1*s.x1 + s.w2*s.x2 + s.bh1e;
+  s.h1 = sig(s.net_h1);
+  s.net_h2 = s.w3*s.x1 + s.w4*s.x2 + s.bh2e;
+  s.h2 = sig(s.net_h2);
+  s.net_o1 = s.w5*s.h1 + s.w6*s.h2 + s.bo1e;
+  s.o1 = sig(s.net_o1);
+  s.net_o2 = s.w7*s.h1 + s.w8*s.h2 + s.bo2e;
+  s.o2 = sig(s.net_o2);
+  s.E = 0.5*((s.o1-s.t1)**2 + (s.o2-s.t2)**2);
+  s.delta_o1 = (s.o1-s.t1) * s.o1 * (1-s.o1);
+  s.delta_o2 = (s.o2-s.t2) * s.o2 * (1-s.o2);
+  s.dE_dw5 = s.delta_o1 * s.h1;
+  s.w5_new = s.w5 - ETA * s.dE_dw5;
+  s.delta_h1 = (s.delta_o1*s.w5 + s.delta_o2*s.w7) * s.h1 * (1-s.h1);
+  s.dE_dw1 = s.delta_h1 * s.x1;
+  s.w1_new = s.w1 - ETA * s.dE_dw1;
+}
+
+function renderGivens(){
+  const body = document.getElementById('givens-body');
+  const bhRow = useBias
+    ? `<tr><td colspan="2">bias bh1 = ${f2(s.bh1)}, bh2 = ${f2(s.bh2)}</td></tr>`
+    : `<tr><td colspan="2" class="off">bias bh1 = bh2 = 0 (off)</td></tr>`;
+  const boRow = useBias
+    ? `<tr><td colspan="2">bias bo1 = ${f2(s.bo1)}, bo2 = ${f2(s.bo2)}</td></tr>`
+    : `<tr><td colspan="2" class="off">bias bo1 = bo2 = 0 (off)</td></tr>`;
+  body.innerHTML = `
+    <tr><td class="h" colspan="2">Inputs &amp; targets</td></tr>
+    <tr><td>x1 = ${f2(s.x1)} &nbsp; x2 = ${f2(s.x2)}</td><td>t1 = ${f2(s.t1)} &nbsp; t2 = ${f2(s.t2)}</td></tr>
+    <tr><td class="h" colspan="2">Input → hidden</td></tr>
+    <tr><td>w1=${f2(s.w1)} (x1→h1)</td><td>w2=${f2(s.w2)} (x2→h1)</td></tr>
+    <tr><td>w3=${f2(s.w3)} (x1→h2)</td><td>w4=${f2(s.w4)} (x2→h2)</td></tr>
+    ${bhRow}
+    <tr><td class="h" colspan="2">Hidden → output</td></tr>
+    <tr><td>w5=${f2(s.w5)} (h1→o1)</td><td>w6=${f2(s.w6)} (h2→o1)</td></tr>
+    <tr><td>w7=${f2(s.w7)} (h1→o2)</td><td>w8=${f2(s.w8)} (h2→o2)</td></tr>
+    ${boRow}
+    <tr><td class="h" colspan="2">Rules</td></tr>
+    <tr><td>η = ${ETA}</td><td>E = ½Σ(o−t)²</td></tr>`;
+}
+
+function buildQuiz(){
+  const lblBh1 = useBias ? ' + bh1' : '', plusBh1 = useBias ? ` + ${f2(s.bh1)}` : '';
+  const lblBh2 = useBias ? ' + bh2' : '', plusBh2 = useBias ? ` + ${f2(s.bh2)}` : '';
+  const lblBo1 = useBias ? ' + bo1' : '', plusBo1 = useBias ? ` + ${f2(s.bo1)}` : '';
+  const lblBo2 = useBias ? ' + bo2' : '', plusBo2 = useBias ? ` + ${f2(s.bo2)}` : '';
+  return [
+    {s:"Forward pass", sn:"01",
+     qn:"Q1", quant:"net_h1", ask:"weighted input to hidden unit 1",
+     ans:s.net_h1, tol:tolOf(s.net_h1),
+     work:`net_h1 = w1·x1 + w2·x2${lblBh1}<br>= ${f2(s.w1)}·${f2(s.x1)} + ${f2(s.w2)}·${f2(s.x2)}${plusBh1}<br>= ${f4(s.w1*s.x1)} + ${f4(s.w2*s.x2)}${plusBh1} = <span class='ans'>${f4(s.net_h1)}</span>`},
+    {qn:"Q2", quant:"h1", ask:"activation of hidden unit 1",
+     ans:s.h1, tol:tolOf(s.h1),
+     work:`h1 = σ(net_h1) = 1 / (1 + e^(−${f4(s.net_h1)})) = <span class='ans'>${f4(s.h1)}</span>`},
+    {qn:"Q3", quant:"net_h2", ask:"weighted input to hidden unit 2",
+     ans:s.net_h2, tol:tolOf(s.net_h2),
+     work:`net_h2 = w3·x1 + w4·x2${lblBh2}<br>= ${f2(s.w3)}·${f2(s.x1)} + ${f2(s.w4)}·${f2(s.x2)}${plusBh2}<br>= ${f4(s.w3*s.x1)} + ${f4(s.w4*s.x2)}${plusBh2} = <span class='ans'>${f4(s.net_h2)}</span>`},
+    {qn:"Q4", quant:"h2", ask:"activation of hidden unit 2",
+     ans:s.h2, tol:tolOf(s.h2),
+     work:`h2 = σ(${f4(s.net_h2)}) = <span class='ans'>${f4(s.h2)}</span>`},
+    {qn:"Q5", quant:"net_o1", ask:"weighted input to output 1",
+     ans:s.net_o1, tol:tolOf(s.net_o1),
+     work:`net_o1 = w5·h1 + w6·h2${lblBo1}<br>= ${f2(s.w5)}·${f4(s.h1)} + ${f2(s.w6)}·${f4(s.h2)}${plusBo1}<br>= ${f4(s.w5*s.h1)} + ${f4(s.w6*s.h2)}${plusBo1} = <span class='ans'>${f4(s.net_o1)}</span>`},
+    {qn:"Q6", quant:"o1", ask:"output 1",
+     ans:s.o1, tol:tolOf(s.o1),
+     work:`o1 = σ(${f4(s.net_o1)}) = <span class='ans'>${f4(s.o1)}</span>`},
+    {qn:"Q7", quant:"o2", ask:"output 2",
+     ans:s.o2, tol:tolOf(s.o2),
+     work:`net_o2 = w7·h1 + w8·h2${lblBo2} = ${f2(s.w7)}·${f4(s.h1)} + ${f2(s.w8)}·${f4(s.h2)}${plusBo2} = ${f4(s.net_o2)}<br>o2 = σ(${f4(s.net_o2)}) = <span class='ans'>${f4(s.o2)}</span>`},
+    {qn:"Q8", quant:"E (total error)", ask:"squared-error loss",
+     ans:s.E, tol:Math.max(0.003, tolOf(s.E)),
+     work:`E = ½[(o1−t1)² + (o2−t2)²]<br>= ½[(${f4(s.o1)}−${f2(s.t1)})² + (${f4(s.o2)}−${f2(s.t2)})²]<br>= ½[(${f4(s.o1-s.t1)})² + (${f4(s.o2-s.t2)})²] = <span class='ans'>${f4(s.E)}</span>`},
+
+    {s:"Backward pass — output layer", sn:"02",
+     qn:"Q9", quant:"δ_o1", ask:"error signal at output 1  =  (o1−t1)·σ′(net_o1)",
+     ans:s.delta_o1, tol:tolOf(s.delta_o1),
+     work:`δ_o1 = (o1−t1) · o1·(1−o1)<br>= ${f4(s.o1-s.t1)} · (${f4(s.o1)}·${f4(1-s.o1)})<br>= ${f4(s.o1-s.t1)} · ${f4(s.o1*(1-s.o1))} = <span class='ans'>${f4(s.delta_o1)}</span>`},
+    {qn:"Q10", quant:"δ_o2", ask:"error signal at output 2 (watch the sign!)",
+     ans:s.delta_o2, tol:tolOf(s.delta_o2),
+     work:`δ_o2 = (o2−t2) · o2·(1−o2)<br>= ${f4(s.o2-s.t2)} · (${f4(s.o2)}·${f4(1-s.o2)})<br>= ${f4(s.o2-s.t2)} · ${f4(s.o2*(1-s.o2))} = <span class='ans'>${f4(s.delta_o2)}</span>`},
+    {qn:"Q11", quant:"∂E/∂w5", ask:"gradient for w5 (h1→o1)  =  δ_o1 · h1",
+     ans:s.dE_dw5, tol:tolOf(s.dE_dw5),
+     work:`w5 carries h1 into o1, so its gradient is the output's blame × the upstream activation:<br>∂E/∂w5 = δ_o1 · h1 = ${f4(s.delta_o1)} · ${f4(s.h1)} = <span class='ans'>${f4(s.dE_dw5)}</span>`},
+    {qn:"Q12", quant:"w5 (updated)", ask:"new value of w5 after one gradient step",
+     ans:s.w5_new, tol:tolOf(s.w5_new),
+     work:`w5⁺ = w5 − η·∂E/∂w5 = ${f2(s.w5)} − ${ETA}·${f4(s.dE_dw5)} = <span class='ans'>${f4(s.w5_new)}</span>`},
+
+    {s:"Backward pass — hidden layer (the chain rule)", sn:"03",
+     qn:"Q13", quant:"δ_h1", ask:"error signal at hidden 1 — sum the blame from BOTH outputs it feeds",
+     ans:s.delta_h1, tol:Math.max(0.0015, tolOf(s.delta_h1)),
+     work:`h1 feeds o1 (via w5) and o2 (via w7), so collect both:<br>δ_h1 = (δ_o1·w5 + δ_o2·w7) · h1·(1−h1)<br>= (${f4(s.delta_o1)}·${f2(s.w5)} + ${f4(s.delta_o2)}·${f2(s.w7)}) · (${f4(s.h1)}·${f4(1-s.h1)})<br>= ${f4(s.delta_o1*s.w5 + s.delta_o2*s.w7)} · ${f4(s.h1*(1-s.h1))} = <span class='ans'>${f4(s.delta_h1)}</span>`},
+    {qn:"Q14", quant:"∂E/∂w1", ask:"gradient for w1 (x1→h1)  =  δ_h1 · x1",
+     ans:s.dE_dw1, tol:Math.max(0.001, tolOf(s.dE_dw1)),
+     work:`∂E/∂w1 = δ_h1 · x1 = ${f4(s.delta_h1)} · ${f2(s.x1)} = <span class='ans'>${f4(s.dE_dw1)}</span>`},
+    {qn:"Q15", quant:"w1 (updated)", ask:"new value of w1 after one gradient step",
+     ans:s.w1_new, tol:Math.max(0.001, tolOf(s.w1_new)),
+     work:`w1⁺ = w1 − η·∂E/∂w1 = ${f2(s.w1)} − ${ETA}·${f4(s.dE_dw1)} = <span class='ans'>${f4(s.w1_new)}</span>`}
+  ];
+}
+
+function renderQuiz(){
+  solved.clear();
+  const quiz = document.getElementById('quiz');
+  quiz.innerHTML = '';
+  const Q = buildQuiz();
+  document.getElementById('total').textContent = Q.length;
+  Q.forEach((q,i)=>{
+    if(q.s){
+      const h = document.createElement('h2');
+      h.innerHTML = `<span class="n">${q.sn}</span>${q.s}`;
+      quiz.appendChild(h);
+    }
+    const d = document.createElement('div');
+    d.className = 'q'; d.id = 'q'+i;
+    d.innerHTML = `
+      <div class="qhead"><span class="qn">${q.qn}</span>
+        <span class="ask">Find <span class="quant">${q.quant}</span> — <span style="color:var(--ink-soft)">${q.ask}</span></span></div>
+      <div class="row">
+        <input type="text" placeholder="your answer" inputmode="decimal">
+        <button class="check">Check</button>
+        <button class="reveal">Reveal</button>
+        <span class="fb"></span>
+      </div>
+      <div class="work">${q.work}</div>`;
+    quiz.appendChild(d);
+    const inp = d.querySelector('input'), fb = d.querySelector('.fb'), wk = d.querySelector('.work');
+    function check(){
+      const v = parseFloat(inp.value.replace(/[^0-9.\-]/g,''));
+      if(isNaN(v)){fb.textContent = 'enter a number'; fb.className = 'fb no'; return;}
+      if(Math.abs(v-q.ans) <= q.tol){
+        fb.textContent = '✓ correct'; fb.className = 'fb ok';
+        d.classList.add('right'); solved.add(i);
+      } else {
+        fb.textContent = '✗ not quite — retry or Reveal'; fb.className = 'fb no';
+        d.classList.remove('right'); solved.delete(i);
+      }
+      updateScore();
+    }
+    d.querySelector('.check').onclick = check;
+    inp.addEventListener('keydown', e => {if(e.key === 'Enter') check();});
+    d.querySelector('.reveal').onclick = () => wk.classList.toggle('show');
+  });
+  updateScore();
+}
+
+function updateScore(){document.getElementById('score').textContent = solved.size;}
+
+function refreshAll(){compute(); renderGivens(); renderQuiz();}
+
+document.getElementById('newnum').onclick = () => {generate(); refreshAll();};
+document.getElementById('bias').onchange = (e) => {useBias = e.target.checked; refreshAll();};
+document.getElementById('reset').onclick = () => {
+  solved.clear(); updateScore();
+  document.querySelectorAll('.q').forEach(d => {
+    d.classList.remove('right');
+    d.querySelector('input').value = '';
+    d.querySelector('.fb').textContent = '';
+    d.querySelector('.work').classList.remove('show');
+  });
+};
+
+generate(); refreshAll();
+</script>
+</body>
+</html>
